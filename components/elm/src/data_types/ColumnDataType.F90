@@ -112,6 +112,9 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_ice         (:,:) => null() ! ice lens (-nlevsno+1:nlevgrnd) (kg/m2)
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
+    real(r8), pointer :: salinity           (:)   => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: h2osfc_tide        (:)   => null() ! tidal height above surface
+    real(r8), pointer :: nitrate_tide       (:)   => null() ! tide water nitrate concentration (mol/L)
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
     real(r8), pointer :: total_plant_stored_h2o(:)=> null() ! total water in plants (kg/m2)
     real(r8), pointer :: wslake_col         (:)   => null() ! col lake water storage (mm H2O)
@@ -445,6 +448,7 @@ module ColumnDataType
     real(r8), pointer :: eflx_hs_top_snow        (:)   => null() ! heat flux on top snow layer (W/m2)
     real(r8), pointer :: eflx_hs_soil            (:)   => null() ! heat flux on soil [W/m2
     real(r8), pointer :: eflx_sabg_lyr           (:,:) => null() ! absorbed solar radiation (col,lyr) (W/m2)
+    real(r8), pointer :: eflx_sh_tide            (:)   => null() !sensible heat flux from tide
     ! Derivatives of energy fluxes
     real(r8), pointer :: eflx_dhsdT              (:)   => null() ! deriv. of energy flux into surface layer wrt temp (W/m2/K)
     ! Latent heat terms
@@ -1480,6 +1484,9 @@ contains
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
+    allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval
+    allocate(this%nitrate_tide       (begc:endc))                     ; this%nitrate_tide       (:)   = spval
+    allocate(this%h2osfc_tide        (begc:endc))                     ; this%h2osfc_tide        (:)   = spval 
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
     allocate(this%h2osoi_liqvol      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liqvol      (:,:) = spval
     allocate(this%h2osoi_icevol      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_icevol      (:,:) = spval
@@ -1609,6 +1616,21 @@ contains
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
 
+    this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt',  &
+          avgflag='A', long_name='surface water salinity', &
+          ptr_col=this%salinity)
+
+   this%h2osfc_tide(begc:endc) = spval
+   call hist_addfld1d (fname='H2OSFC_TIDE',  units='mm H2O',  &
+      avgflag='A', long_name='Tide height above soil surface', &
+      ptr_col=this%h2osfc_tide)
+
+   this%nitrate_tide(begc:endc) = spval
+   call hist_addfld1d (fname='NITRATE_TIDE',  units='mol/L',  &
+      avgflag='A', long_name='Tide water nitrate concentraion', &
+      ptr_col=this%nitrate_tide)
+   
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
           avgflag='A', long_name='volumetric soil water (vegetated landunits only)', &
@@ -1759,6 +1781,9 @@ contains
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
+       this%salinity(c)               = 0._r8
+       this%h2osfc_tide(c)            = 0._r8
+       this%nitrate_tide(c)           = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
        this%h2orof(c)                 = 0._r8
@@ -3487,12 +3512,12 @@ contains
     allocate(this%smin_no3_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_no3_vr           (:,:) = spval
     allocate(this%smin_nh4_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4_vr           (:,:) = spval
     allocate(this%smin_nh4sorb_vr       (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4sorb_vr       (:,:) = spval
-    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = 0.0_r8
-    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = 0.0_r8
-    allocate(this%N2O_vr                (begc:endc,1:nlevdecomp_full))   ; this%N2O_vr                (:,:) = 0.0_r8
-    allocate(this%N2_vr                 (begc:endc,1:nlevdecomp_full))   ; this%N2_vr                 (:,:) = 0.0_r8
-    allocate(this%totN2O                (begc:endc))                     ; this%totN2O                (:)   = 0.0_r8
-    allocate(this%totN2                 (begc:endc))                     ; this%totN2                 (:)   = 0.0_r8
+    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = spval
+    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = spval
+    allocate(this%N2O_vr                (begc:endc,1:nlevdecomp_full))   ; this%N2O_vr                (:,:) = spval
+    allocate(this%N2_vr                 (begc:endc,1:nlevdecomp_full))   ; this%N2_vr                 (:,:) = spval
+    allocate(this%totN2O                (begc:endc))                     ; this%totN2O                (:)   = spval
+    allocate(this%totN2                 (begc:endc))                     ; this%totN2                 (:)   = spval
     allocate(this%decomp_npools         (begc:endc,1:ndecomp_pools))     ; this%decomp_npools         (:,:) = spval
     allocate(this%decomp_npools_1m      (begc:endc,1:ndecomp_pools))     ; this%decomp_npools_1m      (:,:) = spval
     allocate(this%smin_no3              (begc:endc))                     ; this%smin_no3              (:)   = spval
@@ -3916,6 +3941,9 @@ contains
           this%totecosysn(c) = 0._r8
           this%totcoln(c)    = 0._r8
           this%cwdn(c)       = 0._r8
+          this%totDON(c)     = 0._r8
+          this%totN2O(c)     = 0._r8
+          this%totN2(c)      = 0._r8
 
           ! dynamic landcover state variables
           this%seedn(c)         = 0._r8
@@ -4402,6 +4430,9 @@ contains
        if(use_pflotran .and. pf_cmode) then
           this%smin_nh4sorb(i) = value_column
        end if
+       this%totDON(i)      = value_column
+       this%totN2O(i)      = value_column
+       this%totN2(i)       = value_column
        this%totlitn(i)     = value_column
        this%totsomn(i)     = value_column
        this%totecosysn(i)  = value_column
@@ -5846,6 +5877,7 @@ contains
     allocate(this%htvp                 (begc:endc))              ; this%htvp                 (:)   = spval
     allocate(this%xmf                  (begc:endc))              ; this%xmf                  (:)   = spval
     allocate(this%xmf_h2osfc           (begc:endc))              ; this%xmf_h2osfc           (:)   = spval
+    allocate(this%eflx_sh_tide         (begc:endc))              ; this%eflx_sh_tide         (:)   = 0.0_r8
     allocate(this%imelt                (begc:endc,-nlevsno+1:nlevgrnd))  ; this%imelt        (:,:) = huge(1)
     allocate(this%eflx_soil_grnd       (begc:endc))              ; this%eflx_soil_grnd       (:)   = spval
     allocate(this%eflx_rnet_soil       (begc:endc))              ; this%eflx_rnet_soil       (:)   = spval
@@ -6105,11 +6137,28 @@ contains
          avgflag='A', long_name='sub-surface drainage', &
          ptr_col=this%qflx_drain, c2l_scale_type='urbanf')
 
+    this%qflx_drain_vr(begc:endc, :) = 0.0_r8
+    call hist_addfld2d (fname='QDRAI_VR',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='Sub-surface drainage by layer', &
+          ptr_col=this%qflx_drain_vr)
+
 #if (defined HUM_HOL || defined MARSH)
     this%qflx_lat_aqu(begc:endc) = spval
     call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
          avgflag='A', long_name='Lateral flow between hummock and hollow', &
          ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+
+    this%qflx_lat_aqu_layer(begc:endc, :) = spval
+    call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
+         avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
+         ptr_col=this%qflx_lat_aqu_layer)
+#endif
+
+#if (defined MARSH)
+   this%qflx_tide(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
+         avgflag='A', long_name='Tidal flux between marsh columns', &
+         ptr_col=this%qflx_tide)
 #endif 
 
    this%qflx_adv(begc:endc,:) = spval
@@ -6261,6 +6310,9 @@ contains
           this%qflx_surf(c)  = 0._r8
        end if
     end do
+
+    this%qflx_surf_input (begc:endc) = 0._r8
+    this%qflx_tide (begc:endc)       = 0._r8
 
   end subroutine col_wf_init
 

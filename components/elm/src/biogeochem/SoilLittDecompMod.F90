@@ -834,6 +834,7 @@ contains
                smin_nh4_vr(c,j) = smin_nh4_vr(c,j) - (smin_nh4_to_plant_vr(c,j) - smin_nh4_to_plant_vr_loc(c,j))*dt
                smin_no3_vr(c,j) = max(0._r8, smin_no3_vr(c,j))
                smin_nh4_vr(c,j) = max(0._r8, smin_nh4_vr(c,j))
+               sminn_vr(c,j)    = smin_nh4_vr(c,j) + smin_no3_vr(c,j)
             end do
       end do
     end if !(use_pflotran.and.pf_cmode)

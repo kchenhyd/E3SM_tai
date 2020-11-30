@@ -184,10 +184,6 @@ contains
          fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
 #endif
 
-#if (defined MARSH)
-         if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
-         if (c .eq. 2) fsat(c) = min(1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t0 0.1, 0.15 to 0.35 !bsulman: what does 0.15 represent?
-#endif
          ! use perched water table to determine fsat (if present)
          if ( frost_table(c) > zwt(c)) then
             if (use_vichydro) then
@@ -195,10 +191,19 @@ contains
             else
                fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt(c))
             end if
+#if (defined HUM_HOL)
+            fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
+#endif
+
          else
             if ( frost_table(c) > zwt_perched(c)) then
                fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt_perched(c))!*( frost_table(c) - zwt_perched(c))/4.0
             endif
+
+#if (defined HUM_HOL)
+         fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
+#endif
+
          endif
          if (origflag == 1) then
             if (use_vichydro) then
@@ -223,7 +228,7 @@ contains
             ! assume qinmax large relative to qflx_top_soil in control
             if (origflag == 1) then
                qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
-#if (defined HUM_HOL || defined MARSH)
+#if (defined HUM_HOL)
               if (c .eq. 1) then  !XS - only compute sfc runoff from hummock, send to hollow
               ! (TODO) this 'c.eq.1' likely not what expected, because col-indexing is 1d-expanded and including all cols in all grids
                 qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
@@ -334,6 +339,7 @@ contains
 #endif
 #if (defined MARSH)
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
+      use elm_varctl      , only : tide_file
 #endif
      use elm_time_manager , only : get_curr_date, get_curr_time
      use elm_varcon       , only : secspday
@@ -430,6 +436,9 @@ contains
           iwp_exclvol          =>    col_ws%iwp_exclvol          , & ! Input:  [real(r8) (:)   ]  ice wedge polygon excluded volume (m)
           iwp_ddep             =>    col_ws%iwp_ddep             , & ! Input:  [real(r8) (:)   ]  ice wedge polygon depression depth (m)
           iwp_subsidence       =>    col_ws%iwp_subsidence       , & ! Input:  [real(r8) (:)   ]  ice wedge polygon ground subsidence (m)
+          salinity             =>    col_ws%salinity             , & ! Output:  [real(r8) (:)   ] salinity concentration (ppt)
+          h2osfc_tide          =>    col_ws%h2osfc_tide          , & ! Output: [real(r8) (:) ] Tide height above surface (mm)
+          nitrate_tide         =>    col_ws%nitrate_tide         , & ! Output: [real(r8) (:) ] Tide (surface) water nitrate concentration (mol/L)
 
           qflx_ev_soil         =>    col_wf%qflx_ev_soil         , & ! Input:  [real(r8) (:)   ]  evaporation flux from soil (W/m**2) [+ to atm]
           qflx_evap_soi        =>    col_wf%qflx_evap_soi        , & ! Input:  [real(r8) (:)   ]  ground surface evaporation rate (mm H2O/s) [+]
@@ -443,12 +452,12 @@ contains
           qflx_gross_evap_soil =>    col_wf%qflx_gross_evap_soil , & ! Output: [real(r8) (:)] gross evaporation (mm H2O/s)
           qflx_h2orof_drain    =>    col_wf%qflx_h2orof_drain    , & ! Output: [real(r8) (:)] drainange from floodplain inundation volume (mm H2O/s) 
 #if (defined HUM_HOL || defined MARSH)
-          qflx_lat_aqu         =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:,:) ] total lateral flow 
+          qflx_lat_aqu         =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:) ] total lateral flow
           qflx_lat_aqu_layer   =>    col_wf%qflx_lat_aqu_layer   , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
-          qflx_surf_input      =>    col_wf%qflx_surf_input      , & ! Output: [real(r8) (:,:) ] Input to hollowInput to hollow from hummock surface runoff
+          qflx_surf_input      =>    col_wf%qflx_surf_input      , & ! Output: [real(r8) (:) ] Input to hollowInput to hollow from hummock surface runoff
 #endif
 #if (defined MARSH)
-          qflx_tide            =>    col_wf%qflx_tide            , & ! Output: [real(r8) (:,:) ]
+          qflx_tide            =>    col_wf%qflx_tide            , & ! Output: [real(r8) (:) ]
 #endif
           smpmin               =>    soilstate_vars%smpmin_col               , & ! Input:  [real(r8) (:)   ]  restriction for min of soil potential (mm)
           sucsat               =>    soilstate_vars%sucsat_col               , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
@@ -456,6 +465,9 @@ contains
           bsw                  =>    soilstate_vars%bsw_col                  , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
           hksat                =>    soilstate_vars%hksat_col                , & ! Input:  [real(r8) (:,:) ]  hydraulic conductivity at saturation (mm H2O /s)
           eff_porosity         =>    soilstate_vars%eff_porosity_col         , & ! Output: [real(r8) (:,:) ]  effective porosity = porosity - vol_ice
+
+          ht_above_stream      =>    soilhydrology_vars%ht_above_stream      , & ! Input: [real(r8) (:) ] Height above stream (m) used for tidal BC
+          dist_from_stream     =>    soilhydrology_vars%dist_from_stream     , & ! Input: [real(r8) (:) ] Distance from stream (m) used for tidal BC
 
           h2osfc_thresh        =>    soilhydrology_vars%h2osfc_thresh_col    , & ! Input:  [real(r8) (:)   ]  level at which h2osfc "percolates"
           zwt                  =>    soilhydrology_vars%zwt_col              , & ! Input:  [real(r8) (:)   ]  water table depth (m)
@@ -487,7 +499,7 @@ contains
           end do
        end do
 
-#if (defined HUM_HOL ||defined MARSH)
+#if (defined HUM_HOL || defined MARSH) 
        do j = 1,nlevbed
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
@@ -496,7 +508,6 @@ contains
        end do
        ka_hu = 0._r8
        ka_ho = 0._r8
-#endif
 
        !compute jwt index
        ! The layer index of the first unsaturated layer, i.e., the layer right
@@ -506,6 +517,11 @@ contains
        do fc = 1, num_hydrologyc
           c = filter_hydrologyc(fc)
           jwt(c) = nlevbed
+          qflx_lat_aqu(c) = 0._r8
+          qflx_surf_input(c) = 0._r8
+#if (defined MARSH)
+          qflx_tide(c) = 0._r8
+#endif
           ! allow jwt to equal zero when zwt is in top layer
           do j = 1,nlevbed
              if(zwt(c) <= zi(c,j)) then
@@ -514,6 +530,8 @@ contains
              end if
           enddo
        enddo
+#endif
+
 
        do fc = 1, num_hydrologyc
           c  = filter_hydrologyc(fc)
@@ -546,7 +564,7 @@ contains
              endif
 
              !1. partition surface inputs between soil and h2osfc
-#if (defined HUM_HOL || defined MARSH)
+#if (defined HUM_HOL)
              hol_frac = 1.0_r8 - hum_frac
              if (c .eq. 1) then
                qflx_surf_input(1) = 0._r8 !hummock TAO KEEP AT ZERO!!!
@@ -623,12 +641,13 @@ contains
              !4. soil infiltration and h2osfc "run-on"
              qflx_infl(c) = qflx_in_soil(c) - qflx_infl_excess(c)
              qflx_in_h2osfc(c) =  qflx_in_h2osfc(c) + qflx_infl_excess(c)
-#if (defined HUM_HOL || defined MARSH)
+#if (defined HUM_HOL)
              if (c .eq. 1) then
                ! qflx_surf is surface runoff. So this means there is no surface runoff from hollow (channel) to hummock (marsh?)
                 qflx_surf(1) = qflx_surf(1) + qflx_in_h2osfc(c)
                 qflx_surf_input(2) = qflx_surf_input(2) + qflx_in_h2osfc(c)
                 qflx_in_h2osfc(c) = 0._r8    
+                !qflx_surf(1) is set to 0 earlier
              end if
 #endif
              qflx_gross_infl_soil(c) = qflx_gross_infl_soil(c)- qflx_infl_excess(c)
@@ -679,23 +698,10 @@ contains
                 if (h2osfc(c) .gt. 0._r8) then
                    qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
 
-#elif defined MARSH
-                qflx_tide(c) = 0._r8
-
-                if (h2osfc(c) .gt. 0._r8 .and. c==1) then
-                   qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
-                else if (c .eq. 2) then
-                   call get_curr_time (days, seconds)
-                   qflx_h2osfc_surf(c) = 0._r8
-                   ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
-                   ! Tidal cycle is the sum of all the sinusoidal components
-                   h2osfc_before = h2osfc(c)
-                   h2osfc(c) = 0.0_r8
-                   do ii=1,num_tide_comps
-                      h2osfc(c) = h2osfc(c) + tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
-                   enddo
-                   h2osfc(c) = max(h2osfc(c) + tide_baseline, 0.0)
-                   qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
+#elif (defined MARSH)   
+             qflx_tide(c) = 0._r8
+             if (h2osfc(c) .gt. 0._r8) then
+                qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime) 
 
 #else
                 if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
@@ -751,8 +757,8 @@ contains
                 qflx_h2osfc_drain(c)= max(0._r8,h2osfc(c)/dtime) !ensure no h2osfc
              endif
 
-#if (defined HUM_HOL || defined MARSH)
-             if(num_hydrologyc .ne. 2) call endrun(msg="Error: Must have 2 columns if HUM_HOL or MARSH is defined")
+#if (defined HUM_HOL)
+             if(num_hydrologyc .ne. 2) call endrun(msg="Error: Must have 2 columns if HUM_HOL is defined")
              !compute lateral flux in aquifer
              if (jwt(c) .lt. nlevbed) then
                 do j=nlevbed,jwt(c)+1,-1
@@ -778,6 +784,7 @@ contains
                zwt_hu = zwt(1)
                zwt_hu = zwt_hu - h2osfc(1)/1000._r8
              endif
+
              if (c.eq.2) then
                zwt_ho = zwt(2)
                ka_ho = max(ka_ho, 1e-5_r8)
@@ -800,30 +807,79 @@ contains
                  qflx_lat_aqu(2) = -2._r8/(1._r8/ka_hu+1._r8/ka_ho) * (zwt_hu-zwt_ho- &
                      humhol_ht) / humhol_dist * sqrt(hum_frac/hol_frac)
                endif
+            endif
+#endif
 
 #if (defined MARSH)
-               ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
-               ! Tidal cycle is the sum of all the sinusoidal components
                call get_curr_time(days, seconds)
-               h2osfc_tide = 0.0_r8
-                do ii=1,num_tide_comps
-                  h2osfc_tide = h2osfc_tide + tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
-                enddo
-                h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
-               !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
-                qflx_lat_aqu(2) = qflx_lat_aqu(2) + (h2osfc_tide-h2osfc(c))/dtime
-                
+               h2osfc_tide(c) = 0.0_r8
+               if(tide_file .ne. ' ') then
+#ifdef CPL_BYPASS
+                  ! If external forcing tide file is specified then use that via coupler bypass
+                  ! At some point should make this so it doesn't require bypass (can use normal coupler)
+                  ! Indexing assumes that tide forcing is a time series of hourly values
+                  ! Time dimension is tricky if it could be gridded or not... 
+                  h2osfc_tide(c) = (atm2lnd_vars%tide_height(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
+                  salinity(c) = atm2lnd_vars%tide_salinity(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+                  nitrate_tide(c) = atm2lnd_vars%tide_nitrate(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+#endif
+               else
+                  do ii=1,num_tide_comps
+                     h2osfc_tide(c) =    h2osfc_tide(c)    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+                  enddo
+               endif
+
+                h2osfc_tide(c) = h2osfc_tide(c) + tide_baseline - ht_above_stream(c)*1000._r8
+                ! Limit h2osfc_tide to above bedrock level
+                h2osfc_tide(c) = max(h2osfc_tide(c),-zi(c,nlevbed-1)*1000_r8)
+
+               !compute lateral subsurface flux
+               if (jwt(c) .lt. nlevbed) then
+                  do j=nlevbed,jwt(c)+1,-1
+                  s_node = max(h2osoi_vol(c,j)/watsat(c,j), 0.01_r8)
+                  s_node = min(1.0_r8, s_node)
+                  s1 = 0.5_r8*(1.0+s_node)
+                  s1 = min(1._r8, s1)
+                  ! hu (hummock) is marsh and hollow is tidal channel
+                  ka_hu = ka_hu+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+                           dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevbed))
+                  end do
+               else
+                  s_node = max(h2osoi_vol(c,jwt(c))/watsat(c,jwt(c)), 0.01_r8)
+                  s_node = min(1.0_r8, s_node)
+                  s1 = 0.5_r8*(1.0+s_node)
+                  s1 = min(1._r8, s1)
+                  ka_hu = ka_hu+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+               end if
+
+               zwt_hu = zwt(c)
+               zwt_hu = zwt_hu - h2osfc(c)/1000._r8
+
+               ka_hu = max(ka_hu, 1e-5_r8)
+
+               !DMR 12/4/2015
+               if (icefrac(c,min(jwt(c)+1,nlevbed)) .ge. .90_r8) then
+                  !turn off lateral transport if any ice is present at or below,
+                  qflx_lat_aqu(c) = 0._r8
+               else
+                  qflx_lat_aqu(c) =  2._r8*ka_hu * (h2osfc_tide(c)/1000._r8 - (h2osfc(c)/1000._r8 - zwt(c))) / max(dist_from_stream(c), 1.0_r8)
+               endif
+             
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
-                if(h2osfc(2)>0 .and. h2osfc(2)>(h2osfc(1)+humhol_ht*1000.0)) then
-                  qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                elseif(h2osfc(1)>0 .and. h2osfc(1)>(h2osfc(2)-humhol_ht*1000.0)) then
-                  qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
-                  qflx_lat_aqu(1) = qflx_lat_aqu(1) - min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
+               ! Maybe this should be going into qflx_surf instead of qflx_lat_aqu? 
+               ! Skip this if there is snow on the ground in case it messes things up?
+               if(snow_depth(c) < 0.01_r8) then
+                if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
+                  qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide(c)-h2osfc(c))*sfcflow_ratescale,h2osfc_tide(c)*0.5/dtime)
+                elseif(h2osfc(c)>0 .and. h2osfc(c) > h2osfc_tide(c)) then
+                  qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-h2osfc_tide(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
                 endif
+               else
+                  ! Get rid of surface water when there's snow
+                  qflx_lat_aqu(c) = - min((h2osfc(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
+               endif
 #endif
-             endif
-#endif
+
 
              !7. remove drainage from h2osfc and add to qflx_infl
              h2osfc(c) = h2osfc(c) - qflx_h2osfc_drain(c) * dtime
@@ -987,14 +1043,14 @@ contains
           qflx_irrig         =>    col_wf%qflx_irrig         , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)
           qflx_grnd_irrig_col=>    col_wf%qflx_grnd_irrig    , & ! Output: [real(r8) (:)   ]  col real groundwater irrigation flux (mm H2O /s)
                         
-#if (defined HUM_HOL ||defined MARSH)
+#if (defined HUM_HOL || defined MARSH)
           icefrac            =>    soilhydrology_vars%icefrac_col      , &  !Output: [real(r8) (:,:) ]      
-          qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
-          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:,:) ] total lateral flow
+          !qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:) ] surface runoff input to hollow (mmH2O/s)
+          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:) ] total lateral flow
           qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
 #endif
 #if (defined MARSH)
-          qflx_tide          =>    col_wf%qflx_tide          , & ! Output: [real(r8) (:,:) ]
+          qflx_tide          =>    col_wf%qflx_tide          , & ! Output: [real(r8) (:) ]
 #endif
 
           zwt                =>    soilhydrology_vars%zwt_col            , & ! Output: [real(r8) (:)   ]  water table depth (m)
@@ -1136,6 +1192,8 @@ contains
 ! Water table changes due to lateral flux between hommock and hollow in aquifer 
        do fc = 1, num_hydrologyc
            c = filter_hydrologyc(fc)
+
+           qflx_lat_aqu_layer(c,:) = 0.0
     
     ! use analytical expression for aquifer specific yield
              rous = watsat(c,nlevbed) &
@@ -1193,12 +1251,12 @@ contains
                   qflx_lat_aqu_tot = 0._r8
                   if (h2osfc(c) .lt. 0) then
                     qflx_lat_aqu_tot = h2osfc(c)
-                    h2osfc(c) = 0.
+                    h2osfc(c) = 0._r8 
                   end if
                 end if
                 do j = jwt(c)+1, nlevbed
    
-   ! use analytical expression for specific yield
+                   ! use analytical expression for specific yield
                    s_y = watsat(c,j) &
                         * ( 1. -  (1.+1.e3*zwt(c)/sucsat(c,j))**(-1./bsw(c,j)))
                    s_y=max(s_y,0.02_r8)
@@ -1213,10 +1271,13 @@ contains
                    else
                       zwt(c) = zi(c,j)
                    endif
-   
                 enddo
                 if (qflx_lat_aqu_tot > 0.) zwt(c) = zwt(c) - qflx_lat_aqu_tot/1000._r8/rous
              endif
+
+             ! qflx_lat_aqu_layer(:,:) needs to convert unit of per seconds
+             qflx_lat_aqu_layer(c,:) = qflx_lat_aqu_layer(c,:)/dtime
+
    !-- recompute jwt for following calculations  ---------------------------------
    ! allow jwt to equal zero when zwt is in top layer
              jwt(c) = nlevbed
@@ -1424,6 +1485,7 @@ contains
      real(r8) :: rel_moist                ! relative moisture, temporary variable
      real(r8) :: wtsub_vic                ! summation of hk*dzmm for layers in the third VIC layer
      real(r8) :: deep_seep                ! Deep seepage for SPRUCE
+     real(r8) :: qflx_adv_tot(bounds%begc:bounds%endc,1:nlevgrnd)             ! amount of water transported between layers during a time step (mm)
 
      !-----------------------------------------------------------------------
 
@@ -1474,11 +1536,12 @@ contains
           qflx_qrgwl         =>    col_wf%qflx_qrgwl         , & ! Output: [real(r8) (:)   ] qflx_surf at glaciers, wetlands, lakes (mm H2O /s)
           qflx_rsub_sat      =>    col_wf%qflx_rsub_sat      , & ! Output: [real(r8) (:)   ] soil saturation excess [mm h2o/s]
           qflx_drain_perched =>    col_wf%qflx_drain_perched , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)
-          qflx_drain_vr       =>    col_wf%qflx_drain_vr       , & ! Output: [real(r8) (:)   ] sub-surface runoff (mm H2O /time step)
+          qflx_drain_vr      =>    col_wf%qflx_drain_vr      , & ! Output: [real(r8) (:)   ] sub-surface runoff (mm H2O /time step)
 #if (defined HUM_HOL || defined MARSH)
-          qflx_surf_input     =>    col_wf%qflx_surf_input     , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
-          qflx_lat_aqu        =>    col_wf%qflx_lat_aqu        , & ! Output: [real(r8) (:,:) ] total lateral flow
-          qflx_lat_aqu_layer  =>    col_wf%qflx_lat_aqu_layer  , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+          qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
+          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:,:) ] total lateral flow
+          qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+          qflx_adv           =>    col_wf%qflx_adv           , & ! Input:  [real(r8) (:,:) ] vertical water flux between layers (mm/s)
 #endif
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)
@@ -1718,8 +1781,11 @@ contains
                         - exp(-3._r8))/(1.0_r8-exp(-3._r8))
                    imped=(1._r8 - fracice_rsub(c))
                    rsub_top_max = 5.5e-3_r8
-#if (defined HUM_HOL || defined MARSH)                   
+#if (defined HUM_HOL)                   
                    rsub_top_max = min(5.5e-3_r8, rsub_top_globalmax)
+#endif
+#if (defined MARSH)                   
+                   rsub_top_max = rsub_top_globalmax
 #endif
                 end if
              else
@@ -1733,8 +1799,7 @@ contains
                 end if
              endif
 
-! bsulman: Does MARSH need this deep_seep stuff?
-#if (defined HUM_HOL || defined MARSH )
+#if (defined HUM_HOL)
           deep_seep = 0._r8 !100.0_r8 / 365._r8 / 86400._r8  !rate per second
           !changes for hummock hollow topography
           if (c .eq. 1) then !hummock
@@ -1937,6 +2002,8 @@ contains
                 ! use original code to send water to drainage (non-h2osfc case)
                 qflx_rsub_sat(c)     = xs1(c) / dtime
              endif
+             ! Not sure if it makes sense to include this in qflx_drain_vr?
+            !  qflx_drain_vr(c,1) = qflx_drain_vr(c,1) + xs1(c)
           endif
 
           if (use_vsfm) qflx_rsub_sat(c) = 0._r8

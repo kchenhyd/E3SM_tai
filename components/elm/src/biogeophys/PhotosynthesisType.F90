@@ -269,7 +269,7 @@ contains
        this%vcmax25_top_patch(begp:endp) = spval
        call hist_addfld1d (fname='VCMAX25TOP', units='umolCO2/m^2/s', &
             avgflag='A', long_name='vcmax at top canopy at 25oC', &
-            ptr_patch=this%vcmax25_top_patch, default='inactive')
+            ptr_patch=this%vcmax25_top_patch)
 
     end if
 

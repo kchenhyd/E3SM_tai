@@ -65,6 +65,9 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_flux_qflx_adv
     integer :: index_l2e_state_wtd
     integer :: index_l2e_state_h2osfc
+    integer :: index_l2e_state_tide_height
+    integer :: index_l2e_state_flood_salinity
+    integer :: index_l2e_state_flood_nitrate
     integer :: index_l2e_flux_qflx_drain
     integer :: index_l2e_flux_qflx_lat_aqu_layer
     
@@ -372,14 +375,21 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_qflx_drain      = index
 
-
-    id                                   = L2E_STATE_WTD
+    id                                   = L2E_STATE_SALINITY_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_state_wtd      = index
+    this%index_l2e_state_flood_salinity      = index
+
+    id                                   = L2E_STATE_TIDE_NITRATE_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_flood_nitrate      = index
 
     id                                   = L2E_STATE_H2OSFC_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_h2osfc      = index
+
+    id                                   = L2E_STATE_H2OSFC_TIDE_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_tide_height      = index
 
     id                                   = L2E_STATE_WTD
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -1134,6 +1144,10 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer       , qflx_lat_aqu_l2e     )
 
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_salinity , flood_salinity_l2e )
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_nitrate , flood_nitrate_l2e )
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_tide_height    , tide_height_l2e     ) 
+
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DIC , DIC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DOC , DOC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DON , DON_e2l)
@@ -1281,6 +1295,12 @@ end subroutine EMAlquimia_Coldstart
              if(this%plantNH4uptake_pool_number>0) total_immobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
              if(this%plantNH4uptake_pool_number>0) total_mobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
 
+             ! Prevent unsaturated layers occurring in the subsurface when there is surface water or the layer above is saturated
+             if(h2osfc_l2e(c) > 0.01) h2o_liqvol(c,j) = porosity_l2e(c,j) - h2o_icevol(c,j)
+             if(j>1 .and. h2o_liqvol(c,j)+h2o_icevol(c,j)<porosity_l2e(c,j)) then
+                if(porosity_l2e(c,j-1) - (h2o_liqvol(c,j-1)+h2o_icevol(c,j-1)) <0.01) h2o_liqvol(c,j) = porosity_l2e(c,j) - h2o_icevol(c,j)
+             endif
+
              ! Prevent negative values of h2o_liqvol
              h2o_liqvol(c,j) = max(h2o_liqvol(c,j),0.0001_r8)
              h2o_liqvol(c,j) = min(h2o_liqvol(c,j),1.0_r8)
@@ -1318,11 +1338,53 @@ end subroutine EMAlquimia_Coldstart
               ! Need to save lateral flow for C balance
               surf_flux(:) = 0.0_r8 ! Positive means into soil
               lat_flux(:)  = 0.0_r8
-              lat_bc(:)    =  this%bc(:) ! Currently setting to initial condition.
+              lat_bc(:) = 0.0_r8 ! this%bc(:) ! Currently setting to initial condition.
               surf_bc(:) = this%bc(:) ! Currently setting to initial condition. Should update so it tracks atmospheric O2, CO2, CH4 concentrations
               ! Assume surface water has no dissolved N. At some point should track N content of surface water though
               if(this%NO3_pool_number>0) surf_bc(this%NO3_pool_number) = 0.0_r8
               if(this%NH4_pool_number>0) surf_bc(this%NH4_pool_number) = 0.0_r8
+#if (defined MARSH)
+              ! Set lateral (tidal flooding) and surface (infiltration) boundary conditions for salinity
+              ! Boundary conditions are in mol/m3 of H2O (NOT mol/L). Salinity in parts per thousand (g/kg = g/L = kg/m3)
+              ! 1 ppt = 1000 g salt/m3 water / (35.453 g Cl/mol Cl * 1.8066 g salt/g Cl)
+              if(this%chloride_pool_number>0) then
+                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*.0018066_r8)
+                if (this%sulfate_pool_number>0) then
+                  lat_bc(this%sulfate_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.14_r8/96.06_r8 ! Ratio from Jiaze's manuscript
+                endif
+                if(this%sodium_pool_number>0) lat_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
+                if(this%sulfide_pool_number>0) lat_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
+                ! Assuming ocean water pH is 8 at salinity of 30 and freshwater pH is 6 at salinity of zero
+                if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))
+                
+                if(this%NO3_pool_number>0) lat_bc(this%NO3_pool_number) = flood_nitrate_l2e(c)*1000
+
+                ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
+                ! Now that we have tide height info, we could use that instead. But this won't be correct while tide is going down
+                if (h2osfc_l2e(c)>0) then
+                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*.0018066_r8)
+                  if (this%sulfate_pool_number>0) then
+                    surf_bc(this%sulfate_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.14_r8/96.06_r8 ! Ratio from Jiaze's manuscript
+                  endif
+                  if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
+                  if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
+                  if(this%Hplus_pool_number>0) surf_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))
+                  
+                  if(this%NO3_pool_number>0) surf_bc(this%NO3_pool_number) = flood_nitrate_l2e(c)*1000
+                else
+                  surf_bc(this%chloride_pool_number) = 0.0_r8
+                  if (this%sulfate_pool_number>0) then
+                    surf_bc(this%sulfate_pool_number) = 0.0_r8
+                  endif
+                  if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = 0.0_r8
+                  if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = 0.0_r8
+                  if(this%Hplus_pool_number>0) surf_bc(this%Hplus_pool_number) = 10**(-(6+0.0_r8*2.0/30.0))
+
+                endif
+
+              endif
+
+#endif
 
               ! Limit velocity of vertical water flux to 1 cm/hour for now (for purposes of advection)
               ! Higher velocities tend to produce negative solute concentrations and crash the model
@@ -1336,6 +1398,7 @@ end subroutine EMAlquimia_Coldstart
                   qflx_adv_l2e(c,j) = 0.0_r8
                 endif
                   qflx_drain_l2e(c,j) = qflx_drain_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))
               enddo
 
               ! reset Alquimia aux_double(:) with ELM state variables
@@ -1415,6 +1478,7 @@ end subroutine EMAlquimia_Coldstart
                   liq_frac(:),  &  ! Liquid fraction of soil water
                   -qflx_adv_l2e(c,0:nlevdecomp),&  ! Vertical water flux (mm/s)
                   qflx_drain_l2e(c,:)/dt,         &      ! Horizontal water flux (depth-resolved) mm/s
+                  qflx_lat_aqu_l2e(c,:),         &      ! Horizontal water flux (depth-resolved) mm/s
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
                   lat_flux,                 &      ! Output: Lateral flux of each solute
                   surf_bc,                  &      ! Surface boundary condition
@@ -2689,7 +2753,7 @@ subroutine run_vert_transport(this,actual_dt, total_mobile, free_mobile, &
 
   real(r8), parameter   :: minval = 1.e-35_r8
 
-  ebul_atmo_frac=0.5 ! Fraction of ebullition that goes directly to atmosphere instead of next layer up
+  ebul_atmo_frac=0.0 ! Fraction of ebullition that goes directly to atmosphere instead of next layer up
 
   do j=1,nlevdecomp
   sat(j) = min(max(saturation(j),0.01),1.0)

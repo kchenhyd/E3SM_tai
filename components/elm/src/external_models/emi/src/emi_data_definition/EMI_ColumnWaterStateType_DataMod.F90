@@ -90,7 +90,41 @@ contains
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
+
+    case(L2E_STATE_SALINITY_COL)
+       id_val         =  L2E_STATE_SALINITY_COL
+       name_val       =  'Flood salinity'
+       long_name_val  =  'Flood salinity: ELM to EM'
+       units_val      =  'ppt'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(L2E_STATE_TIDE_NITRATE_COL)
+       id_val         =  L2E_STATE_TIDE_NITRATE_COL
+       name_val       =  'Flood nitrate'
+       long_name_val  =  'Flood nitrate: ELM to EM'
+       units_val      =  'ppt'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(L2E_STATE_H2OSFC_TIDE_COL)
+       id_val         =  L2E_STATE_H2OSFC_TIDE_COL
+       name_val       =  'Tide height'
+       long_name_val  =  'Tide height: ELM to EM'
+       units_val      =  'mm'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
     end select
+    
   end subroutine EMI_ColumnWaterStateType_DataInfoByID
     
 end module EMI_ColumnWaterStateType_DataMod

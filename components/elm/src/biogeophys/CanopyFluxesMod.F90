@@ -44,6 +44,7 @@ module CanopyFluxesMod
   use VegetationType        , only : veg_pp
   use VegetationDataType    , only : veg_es, veg_ef, veg_ws, veg_wf
   use VegetationDataType    , only : veg_ns
+  use SoilHydrologyType     , only : soilhydrology_type
 
   !!! using elm_instMod messes with the compilation order
   use elm_instMod           , only : alm_fates, soil_water_retention_curve
@@ -65,7 +66,7 @@ contains
   subroutine CanopyFluxes(bounds,  num_nolakeurbanp, filter_nolakeurbanp, &
        atm2lnd_vars, canopystate_vars, cnstate_vars, energyflux_vars, &
        frictionvel_vars, soilstate_vars, solarabs_vars, surfalb_vars, &
-       ch4_vars, photosyns_vars)
+       ch4_vars, photosyns_vars, soilhydrology_vars)
     ! !DESCRIPTION:
     ! 1. Calculates the leaf temperature:
     ! 2. Calculates the leaf fluxes, transpiration, photosynthesis and
@@ -127,6 +128,7 @@ contains
     type(soilstate_type)      , intent(inout) :: soilstate_vars
     type(ch4_type)            , intent(inout) :: ch4_vars
     type(photosyns_type)      , intent(inout) :: photosyns_vars
+    type(soilhydrology_type)  , intent(inout) :: soilhydrology_vars
     real(r8) :: dtime
     integer  ::  time
     !
@@ -603,6 +605,7 @@ contains
               fn = fn,                           &
               filterp = filterp,                 &
               canopystate_vars=canopystate_vars, &
+              soilhydrology_vars=soilhydrology_vars, &
               energyflux_vars=energyflux_vars,   &
               soilstate_vars=soilstate_vars      &
               )

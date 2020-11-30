@@ -200,7 +200,7 @@ contains
             ! temperature
             tcsoi(c,j) = Q10**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
             if (t_soisno(c,j) < dormant_mr_temp) then
-                tcsoi(c,j) = tcsoi(c,j)*dormant_mr_factor
+                tcsoi(c,j) = dormant_mr_factor
             end if
          end do
       end do

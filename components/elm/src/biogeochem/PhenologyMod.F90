@@ -940,9 +940,11 @@ contains
                ! if the gdd flag is set, and if the soil is above freezing
                ! then accumulate growing degree days for onset trigger
 
-               !soilt = t_soisno(c,3)
-               !if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
-               !   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+               soilt = t_soisno(c,3)
+               if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
+                  onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+               end if
+
 #if (defined HUM_HOL)
                !if (ivt(p)==3) then!DN (3) 'needleleaf_deciduous_boreal_tree   '
                if(needleleaf(ivt(p)) == 1 .and. &
@@ -973,14 +975,9 @@ contains
                  end if
                  crit_onset_gdd = 33._r8 + 1388._r8 * exp(-0.02_r8 * onset_chil(p))
                else
-                 soilt = t_soisno(c,3)
                  if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
                    onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
                  end if
-               end if
-#else
-               if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
-                  onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
                end if
 #endif
 
@@ -1088,6 +1085,12 @@ contains
 #endif
             end if
 
+            !make sure a second onset period doesn't occur SL 02-09-22
+            if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
+               onset_flag(p) = 0._r8
+               onset_counter(p) = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
+               !dormant_flag(p) = 1._r8
+            endif
          end if ! end if seasonal deciduous
 
       end do ! end of pft loop
