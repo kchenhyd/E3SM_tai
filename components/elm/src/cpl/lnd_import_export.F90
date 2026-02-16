@@ -445,7 +445,7 @@ contains
                 ! CRUJRA v2.3
                 metdata_fname = 'CRUJRAV2.3.c2023.0.5x0.5_' // trim(metvars(v)) // '_1901-2021_z' // zst(2:3) // '.nc'
                 if(index(metdata_type, 'trendy2025') .gt. 0) then
-                    metdata_fname = 'elmforc.TRENDY.c2025.0.5x0.5_' // trim(metvars(v)) // '_1901-2024_z' // zst(2:3) // '.nc'
+                    metdata_fname = 'elmforc.TRENDY.c2025_0.5x0.5_' // trim(metvars(v)) // '_1901-2024_z' // zst(2:3) // '.nc'
                 elseif(index(metdata_type, 'trendy2024') .gt. 0) then
                     metdata_fname = 'crujra.v2.5.5d.0.5x0.5_' // trim(metvars(v)) // '_1901-2023_z' // zst(2:3) // '.nc'
                 elseif(index(metdata_type, 'trendy2023') .gt. 0) then
