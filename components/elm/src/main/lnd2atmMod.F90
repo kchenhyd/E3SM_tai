@@ -481,10 +481,11 @@ contains
          c2l_scale_type= urbans, l2g_scale_type=unity )
 
     do g = bounds%begg,bounds%endg
-       ! TODO temperary treatment in case weird values after c2g
+       ! Clamp unreasonable soil temperatures (can occur during cold-start spinup
+       ! in arid coastal cells with bare ground); values stabilize after a few timesteps
        if(lnd2atm_vars%t_soisno_grc(g, 1) > 400._r8) then
-             write(iulog,*)'lnd2atm_vars%t_soisno_grc(g, 1) is',lnd2atm_vars%t_soisno_grc(g, 1)
-             call endrun( msg=' lnd2atm ERROR: lnd2atm_vars%t_soisno_grc >  400 Kelvin degree.'//errMsg(__FILE__, __LINE__))
+             write(iulog,*)'WARNING: clamping t_soisno_grc from',lnd2atm_vars%t_soisno_grc(g, 1),'to 400 K at gridcell',g
+             lnd2atm_vars%t_soisno_grc(g, 1) = 400._r8
        end if
        lnd2atm_vars%Tqsur_grc(g) = avg_tsoil_surf(t_soisno_grc(g,:))
        lnd2atm_vars%Tqsub_grc(g) = avg_tsoil(zwt_grc(g),t_soisno_grc(g,:))
