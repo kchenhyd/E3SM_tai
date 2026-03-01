@@ -837,10 +837,17 @@ contains
                      ! Compute tide time index
                      if (tide_start_year > 0) then
                         ! Calendar-aligned: map current year to tide file position
+                        ! Clamp to first/last year for out-of-range simulation years
                         call get_curr_date(yr, mon, day, tod)
                         hour_of_year = (mon_doy(mon) + day - 1) * 24 + tod / 3600
                         hours_since_tide_start = (yr - tide_start_year) * 8760 + hour_of_year
-                        tide_time_idx = 1 + modulo(hours_since_tide_start, atm2lnd_vars%tide_forcing_len)
+                        if (hours_since_tide_start < 0) then
+                           tide_time_idx = 1 + hour_of_year
+                        else if (hours_since_tide_start >= atm2lnd_vars%tide_forcing_len) then
+                           tide_time_idx = atm2lnd_vars%tide_forcing_len - 8760 + hour_of_year + 1
+                        else
+                           tide_time_idx = 1 + hours_since_tide_start
+                        endif
                      else
                         ! Legacy: cycle based on elapsed time from reference date
                         tide_time_idx = 1 + mod(int((days*secspday+seconds)/3600), atm2lnd_vars%tide_forcing_len)
