@@ -559,6 +559,7 @@ module elm_varctl
    character(len=fname_len), public :: co2_file       = ' '    ! co2 file for CPL_BYPASS mode
    character(len=fname_len), public :: aero_file      = ' '    ! aerosol deposition file for CPL_BYPASS mode
    character(len=fname_len), public :: tide_file      = ' '    ! Tide height and salinity for CPL_BYPASS
+   integer,                  public :: tide_start_year = -1    ! Calendar year of first hour in tide file (-1 = legacy elapsed-time cycling)
 
   !$acc declare create(use_fates)
 

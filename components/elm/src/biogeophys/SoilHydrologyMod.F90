@@ -339,7 +339,7 @@ contains
 #endif
 #if (defined MARSH)
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
-      use elm_varctl      , only : tide_file
+      use elm_varctl      , only : tide_file, tide_start_year
 #endif
      use elm_time_manager , only : get_curr_date, get_curr_time
      use elm_varcon       , only : secspday
@@ -406,6 +406,11 @@ contains
      integer  :: yr, mon, day, tod               !
      integer  :: days, seconds               !
      integer  :: ii
+     integer  :: tide_time_idx                         ! computed index into tide forcing arrays
+     integer  :: hour_of_year                          ! hour within current calendar year
+     integer  :: hours_since_tide_start                ! hours since tide file start year
+     ! No-leap calendar: cumulative days before each month
+     integer, parameter :: mon_doy(12) = (/0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334/)
      real(r8) :: h2osfc_tide
      real(r8) :: h2osfc_before
      !-----------------------------------------------------------------------
@@ -499,7 +504,17 @@ contains
           end do
        end do
 
-#if (defined HUM_HOL || defined MARSH) 
+#if (defined HUM_HOL || defined MARSH)
+       ! Initialize lateral/tidal fluxes to zero for all columns (including lakes)
+       ! so the MARSH water balance check sees valid values for non-hydrology columns
+       do c = bounds%begc, bounds%endc
+          qflx_lat_aqu(c) = 0._r8
+          qflx_surf_input(c) = 0._r8
+#if (defined MARSH)
+          qflx_tide(c) = 0._r8
+#endif
+       end do
+
        do j = 1,nlevbed
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
@@ -816,12 +831,24 @@ contains
                if(tide_file .ne. ' ') then
 #ifdef CPL_BYPASS
                   ! If external forcing tide file is specified then use that via coupler bypass
-                  ! At some point should make this so it doesn't require bypass (can use normal coupler)
                   ! Indexing assumes that tide forcing is a time series of hourly values
-                  ! Time dimension is tricky if it could be gridded or not... 
-                  h2osfc_tide(c) = (atm2lnd_vars%tide_height(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
-                  salinity(c) = atm2lnd_vars%tide_salinity(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-                  nitrate_tide(c) = atm2lnd_vars%tide_nitrate(g,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+                  ! Only access tide arrays for gridcells within the tide file coverage
+                  if(g <= atm2lnd_vars%ngrids_tide) then
+                     ! Compute tide time index
+                     if (tide_start_year > 0) then
+                        ! Calendar-aligned: map current year to tide file position
+                        call get_curr_date(yr, mon, day, tod)
+                        hour_of_year = (mon_doy(mon) + day - 1) * 24 + tod / 3600
+                        hours_since_tide_start = (yr - tide_start_year) * 8760 + hour_of_year
+                        tide_time_idx = 1 + modulo(hours_since_tide_start, atm2lnd_vars%tide_forcing_len)
+                     else
+                        ! Legacy: cycle based on elapsed time from reference date
+                        tide_time_idx = 1 + mod(int((days*secspday+seconds)/3600), atm2lnd_vars%tide_forcing_len)
+                     endif
+                     h2osfc_tide(c) = atm2lnd_vars%tide_height(g, tide_time_idx) * 1000  !convert m to mm
+                     salinity(c) = atm2lnd_vars%tide_salinity(g, tide_time_idx)
+                     nitrate_tide(c) = atm2lnd_vars%tide_nitrate(g, tide_time_idx)
+                  endif
 #endif
                else
                   do ii=1,num_tide_comps
