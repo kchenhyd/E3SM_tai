@@ -699,6 +699,15 @@ Per tape series history write frequency.
        group="elm_inparm" valid_values="">
 </entry>
 
+<entry id="tide_start_year" type="integer" category="datasets"
+       group="elm_inparm" valid_values="">
+Calendar year of first hour in tide forcing file. When set (> 0), tide
+forcing uses calendar-aligned indexing with clamping: years before
+tide_start_year use the first year data, years after the file ends use
+the last year data. Default -1 uses legacy elapsed-time cycling.
+<default>-1</default>
+</entry>
+
 <entry id="nsegspc" type="integer" category="elm_performance"
        group="elm_inparm" valid_values="" >
 number of segments per clump for decomposition
