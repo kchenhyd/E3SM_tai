@@ -897,20 +897,20 @@ contains
                   qflx_lat_aqu(c) = 0._r8
                else
                   qflx_lat_aqu(c) =  2._r8*ka_hu * (h2osfc_tide(c)/1000._r8 - (h2osfc(c)/1000._r8 - zwt(c))) / max(dist_from_stream(c), 1.0_r8)
-               endif
-             
-                ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
-               ! Maybe this should be going into qflx_surf instead of qflx_lat_aqu? 
-               ! Skip this if there is snow on the ground in case it messes things up?
-               if(snow_depth(c) < 0.01_r8) then
-                if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
-                  qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide(c)-h2osfc(c))*sfcflow_ratescale,h2osfc_tide(c)*0.5/dtime)
-                elseif(h2osfc(c)>0 .and. h2osfc(c) > h2osfc_tide(c)) then
-                  qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-h2osfc_tide(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
-                endif
-               else
-                  ! Get rid of surface water when there's snow
-                  qflx_lat_aqu(c) = - min((h2osfc(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
+
+                  ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
+                  ! Maybe this should be going into qflx_surf instead of qflx_lat_aqu?
+                  ! Skip this if there is snow on the ground in case it messes things up?
+                  if(snow_depth(c) < 0.01_r8) then
+                    if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
+                      qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide(c)-h2osfc(c))*sfcflow_ratescale,h2osfc_tide(c)*0.5/dtime)
+                    elseif(h2osfc(c)>0 .and. h2osfc(c) > h2osfc_tide(c)) then
+                      qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-h2osfc_tide(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
+                    endif
+                  else
+                    ! Get rid of surface water when there's snow
+                    qflx_lat_aqu(c) = - min((h2osfc(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
+                  endif
                endif
 #endif
 
@@ -1307,6 +1307,11 @@ contains
                    endif
                 enddo
                 if (qflx_lat_aqu_tot > 0.) zwt(c) = zwt(c) - qflx_lat_aqu_tot/1000._r8/rous
+               ! Handle unresolved drainage deficit: send residual to aquifer
+               if (qflx_lat_aqu_tot < 0._r8) then
+                  wa(c) = wa(c) + qflx_lat_aqu_tot
+                  wa(c) = min(wa(c), 5000._r8)
+               endif
              endif
 
              ! qflx_lat_aqu_layer(:,:) needs to convert unit of per seconds

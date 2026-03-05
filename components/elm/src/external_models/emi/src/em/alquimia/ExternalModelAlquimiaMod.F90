@@ -2500,8 +2500,8 @@ end subroutine EMAlquimia_Coldstart
           cation_exchange_capacity,&
           aux_doubles,&
           aux_ints,&
-          porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
-    
+          porosity,temperature,volume,saturation,liq_frac,adv_flux,drain_flow,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+
   use c_f_interface_module, only : c_f_string_ptr
   use elm_varpar       , only : nlevdecomp
   use elm_varcon       , only : dzsoi_decomp
@@ -2525,7 +2525,7 @@ end subroutine EMAlquimia_Coldstart
                                           aux_doubles(:,:)
   integer,intent(inout)              :: aux_ints(:,:)
   real(r8),intent(in),dimension(:)   :: porosity,temperature,volume,saturation,lat_flow
-  real(r8),intent(in),dimension(:)   :: adv_flux
+  real(r8),intent(in),dimension(:)   :: adv_flux,drain_flow
   real(r8),intent(in)                :: lat_bc(:), surf_bc(:), liq_frac(:)
   real(r8),intent(inout)             :: surf_flux(:), lat_flux(:),free_mobile(:,:) ! Total (cumulative) surface flux in time step. Units of mol/time step
 
@@ -2660,7 +2660,7 @@ end subroutine EMAlquimia_Coldstart
           surface_site_density,&
           cation_exchange_capacity,&
           aux_doubles,&
-          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,drain_flow,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
 
         if(ncuts>max_cuts) max_cuts=ncuts
         ! write(iulog,*),'Converged =',this%chem_status%converged,"ncuts =",ncuts,'(Substep 1)'
@@ -2677,7 +2677,7 @@ end subroutine EMAlquimia_Coldstart
           surface_site_density,&
           cation_exchange_capacity,&
           aux_doubles,&
-          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,drain_flow,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
           if(ncuts2>max_cuts) max_cuts=ncuts2
         enddo
 
