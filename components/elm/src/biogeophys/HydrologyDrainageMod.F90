@@ -178,6 +178,9 @@ contains
               .or. ctype(c) == icol_shadewall .or. ctype(c) == icol_road_imperv) then
             endwb(c) = h2ocan(c) + h2osno(c)
          else
+            ! Clamp aquifer water to prevent runaway negative values
+            ! (mirrors existing upper-bound clamp of 5000 mm in SoilHydrologyMod)
+            wa(c) = max(wa(c), -5000._r8)
             ! add h2osfc to water balance
             endwb(c) = h2ocan(c) + h2osno(c) + h2osfc(c) + wa(c)
 

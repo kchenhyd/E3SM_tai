@@ -112,6 +112,8 @@ contains
     character(len=*), parameter :: sub = 'lnd_import_mct'
     integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen  
     integer :: ngrids_tide, ndims, dimids(2)
+    integer :: local_start_gc, local_count_gc  ! local gridcell range in tide file
+    integer :: ncid_nf, varid_nf, dimid_nf, status_nf  ! for direct NetCDF tide forcing read
     character(len=20) aerovars(14), metvars(14)
     character(len=3) zst
     integer :: stream_year_first_lightng, stream_year_last_lightng, model_year_align_lightng
@@ -1158,41 +1160,93 @@ contains
        end if
 
        !------------------------------------Tidal forcing--------------------------------------------------
-       if (atm2lnd_vars%loaded_bypassdata .eq. 0) then !.or. (mon .eq. 1 .and. day .eq. 1 .and. tod .eq. 0)) then ! Do on the first day of the year
+       if (atm2lnd_vars%loaded_bypassdata .eq. 0 .and. g .eq. bounds%begg) then ! Only on first gridcell to avoid deadlock
+        ! Deallocate arrays pre-allocated in atm2lndType before re-allocating
+        if(associated(atm2lnd_vars%tide_height)) deallocate(atm2lnd_vars%tide_height)
+        if(associated(atm2lnd_vars%tide_salinity)) deallocate(atm2lnd_vars%tide_salinity)
+        if(associated(atm2lnd_vars%tide_nitrate)) deallocate(atm2lnd_vars%tide_nitrate)
+        if(associated(atm2lnd_vars%tide_temp)) deallocate(atm2lnd_vars%tide_temp)
         if(tide_file .eq. ' ') then
             atm2lnd_vars%tide_forcing_len = 1
-            ngrids_tide=ldomain%ns
-            allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_nitrate(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_temp(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            ngrids_tide=1
+            atm2lnd_vars%ngrids_tide = 0
+            allocate(atm2lnd_vars%tide_height(bounds%begg:bounds%endg,1))
+            allocate(atm2lnd_vars%tide_salinity(bounds%begg:bounds%endg,1))
+            allocate(atm2lnd_vars%tide_nitrate(bounds%begg:bounds%endg,1))
+            allocate(atm2lnd_vars%tide_temp(bounds%begg:bounds%endg,1))
             atm2lnd_vars%tide_height(:,:) = 0.0_r8
             atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
             atm2lnd_vars%tide_nitrate(:,:) = 0.0_r8
             atm2lnd_vars%tide_temp(:,:) = 298.15_r8
         else
-
-            call ncd_pio_openfile (ncid_pio, trim(tide_file), 0)
-            call ncd_inqdid(ncid_pio,'time',dimid,dimexist)
-            if(.not. dimexist) call endrun('Error finding time variable')
-            call ncd_inqdlen(ncid_pio,dimid, len = thistimelen)
-            if(masterproc) write(iulog,*),'Reading tide forcing file. ',trim(tide_file),' Found time dimension of length',thistimelen
+            ! Use direct NetCDF reads (not PIO) to avoid collective-operation deadlocks
+            ! in multi-gridcell runs. Each rank reads its local gridcells independently.
+            status_nf = nf90_open(trim(tide_file), NF90_NOWRITE, ncid_nf)
+            if(status_nf /= NF90_NOERR) call endrun('Error opening tide forcing file: '//trim(tide_file))
+            status_nf = nf90_inq_dimid(ncid_nf, 'time', dimid_nf)
+            if(status_nf /= NF90_NOERR) call endrun('Error finding time dimension in tide file')
+            status_nf = nf90_inquire_dimension(ncid_nf, dimid_nf, len=thistimelen)
+            ! Read gridcell dimension to determine tide file coverage
+            status_nf = nf90_inq_dimid(ncid_nf, 'gridcell', dimid_nf)
+            if(status_nf /= NF90_NOERR) call endrun('Error finding gridcell dimension in tide file')
+            status_nf = nf90_inquire_dimension(ncid_nf, dimid_nf, len=ngrids_tide)
+            if(masterproc) write(iulog,*) 'Reading tide forcing file. ',trim(tide_file), &
+                ' Found time dimension of length',thistimelen,' gridcells',ngrids_tide
             atm2lnd_vars%tide_forcing_len = thistimelen
+            atm2lnd_vars%ngrids_tide = ngrids_tide
 
-            allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_nitrate(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            allocate(atm2lnd_vars%tide_temp(ldomain%ns,atm2lnd_vars%tide_forcing_len))
-            call ncd_io(ncid=ncid_pio,varname='tide_height',data=atm2lnd_vars%tide_height,flag='read',readvar=readvar)
-            if(.not. readvar) call endrun('Error reading tide_height variable')
-            call ncd_io(ncid=ncid_pio,varname='tide_nitrate',data=atm2lnd_vars%tide_nitrate,flag='read',readvar=readvar)
-            if(.not. readvar) call endrun('Error reading tide_nitrate variable')
-            call ncd_io(ncid=ncid_pio,varname='tide_salinity',data=atm2lnd_vars%tide_salinity,flag='read',readvar=readvar)
-            if(.not. readvar) call endrun('Error reading tide_salinity variable')
-            call ncd_io(ncid=ncid_pio,varname='tide_temp',data=atm2lnd_vars%tide_temp,flag='read',readvar=readvar)
-            if(.not. readvar) atm2lnd_vars%tide_temp(:,:) = 298.15_r8
+            ! Compute local gridcell range that overlaps with tide file coverage
+            ! Tide file gridcell dim maps 1:1 to ELM gridcell indices 1..ngrids_tide
+            local_start_gc = bounds%begg
+            local_count_gc = max(0, min(bounds%endg, ngrids_tide) - bounds%begg + 1)
 
-          call ncd_pio_closefile(ncid_pio)
+            ! Allocate for local gridcells only (custom lower bound for transparent indexing)
+            allocate(atm2lnd_vars%tide_height(bounds%begg:bounds%endg,thistimelen))
+            allocate(atm2lnd_vars%tide_salinity(bounds%begg:bounds%endg,thistimelen))
+            allocate(atm2lnd_vars%tide_nitrate(bounds%begg:bounds%endg,thistimelen))
+            allocate(atm2lnd_vars%tide_temp(bounds%begg:bounds%endg,thistimelen))
+
+            ! Initialize to defaults (for gridcells beyond tide file coverage)
+            atm2lnd_vars%tide_height(:,:) = 0.0_r8
+            atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
+            atm2lnd_vars%tide_nitrate(:,:) = 0.0_r8
+            atm2lnd_vars%tide_temp(:,:) = 298.15_r8
+
+            ! Read only this task's gridcells from file (hyperslab)
+            ! NetCDF file dimensions: (gridcell, time)
+            ! nf90_get_var start/count use NetCDF-Fortran reversed order:
+            !   start = (gridcell_start, time_start)
+            !   count = (gridcell_count, time_count)
+            if (local_count_gc > 0) then
+                status_nf = nf90_inq_varid(ncid_nf, 'tide_height', varid_nf)
+                if(status_nf /= NF90_NOERR) call endrun('Error reading tide_height variable')
+                status_nf = nf90_get_var(ncid_nf, varid_nf, &
+                    atm2lnd_vars%tide_height(local_start_gc:local_start_gc+local_count_gc-1, :), &
+                    start=(/local_start_gc, 1/), count=(/local_count_gc, thistimelen/))
+
+                status_nf = nf90_inq_varid(ncid_nf, 'tide_nitrate', varid_nf)
+                if(status_nf /= NF90_NOERR) call endrun('Error reading tide_nitrate variable')
+                status_nf = nf90_get_var(ncid_nf, varid_nf, &
+                    atm2lnd_vars%tide_nitrate(local_start_gc:local_start_gc+local_count_gc-1, :), &
+                    start=(/local_start_gc, 1/), count=(/local_count_gc, thistimelen/))
+
+                status_nf = nf90_inq_varid(ncid_nf, 'tide_salinity', varid_nf)
+                if(status_nf /= NF90_NOERR) call endrun('Error reading tide_salinity variable')
+                status_nf = nf90_get_var(ncid_nf, varid_nf, &
+                    atm2lnd_vars%tide_salinity(local_start_gc:local_start_gc+local_count_gc-1, :), &
+                    start=(/local_start_gc, 1/), count=(/local_count_gc, thistimelen/))
+
+                status_nf = nf90_inq_varid(ncid_nf, 'tide_temp', varid_nf)
+                if(status_nf /= NF90_NOERR) then
+                    ! tide_temp variable not in file; keep default 298.15 K
+                else
+                    status_nf = nf90_get_var(ncid_nf, varid_nf, &
+                        atm2lnd_vars%tide_temp(local_start_gc:local_start_gc+local_count_gc-1, :), &
+                        start=(/local_start_gc, 1/), count=(/local_count_gc, thistimelen/))
+                endif
+            endif
+
+            status_nf = nf90_close(ncid_nf)
 
         endif
       end if

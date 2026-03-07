@@ -239,10 +239,10 @@ contains
     allocate(this%ndep1                          (144,96,1))        ; this%ndep1                     (:,:,:)   = ival
     allocate(this%ndep2                          (144,96,1))        ; this%ndep2                     (:,:,:)   = ival
     allocate(this%aerodata                   (14,144,96,14))        ; this%aerodata                (:,:,:,:)   = ival
-    allocate(this%tide_height                    (1,876000))        ; this%tide_height               (:,:)     = ival
-    allocate(this%tide_salinity                  (1,876000))        ; this%tide_salinity             (:,:)     = ival
-    allocate(this%tide_temp                      (1,876000))        ; this%tide_temp                 (:,:)     = ival
-    allocate(this%tide_nitrate                   (1,876000))        ; this%tide_nitrate              (:,:)     = ival
+    allocate(this%tide_height              (begg:endg,1))        ; this%tide_height               (:,:)     = ival
+    allocate(this%tide_salinity            (begg:endg,1))        ; this%tide_salinity             (:,:)     = ival
+    allocate(this%tide_temp                (begg:endg,1))        ; this%tide_temp                 (:,:)     = ival
+    allocate(this%tide_nitrate             (begg:endg,1))        ; this%tide_nitrate              (:,:)     = ival
     allocate(this%tide_forcing_len                         )        ; this%tide_forcing_len                    = ival_int
     allocate(this%ngrids_tide                              )        ; this%ngrids_tide                         = ival_int
     !END DMR

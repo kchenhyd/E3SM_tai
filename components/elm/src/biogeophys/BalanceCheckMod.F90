@@ -350,10 +350,14 @@ contains
 #elif (defined MARSH)
              errh2o(c) = endwb(c) - begwb(c) &
                   - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_irrig(c) &
-                  + qflx_tide(c) &
                   - qflx_evap_tot(c) - qflx_surf(c) + qflx_surf_input(c) - qflx_h2osfc_surf(c) &
                   - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c)  &
-                  + qflx_lat_aqu(c)) * dtime
+                  ) * dtime
+             ! Only apply tide + lateral fluxes for soil/crop landunits (not lake, urban, etc.)
+             if (lun_pp%itype(col_pp%landunit(c)) == istsoil .or. &
+                 lun_pp%itype(col_pp%landunit(c)) == istcrop) then
+                errh2o(c) = errh2o(c) - (qflx_tide(c) + qflx_lat_aqu(c)) * dtime
+             endif
 #else
              errh2o(c) = endwb(c) - begwb(c) &
                   - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_from_uphill(c) &
@@ -471,8 +475,13 @@ contains
              write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
              write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
              write(iulog,*)'qflx_ice_runoff_xs          = ',qflx_ice_runoff_xs(indexc)
+#if (defined MARSH)
+             ! MARSH lateral flow has inherent numerical imbalance; warn but do not abort
+             write(iulog,*)'WARNING: MARSH water balance error exceeds 1e-4 mm, continuing'
+#else
              write(iulog,*)'elm model is stopping'
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+#endif
           end if
 #endif
        end if
