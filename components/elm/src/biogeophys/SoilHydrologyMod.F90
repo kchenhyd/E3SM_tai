@@ -2117,6 +2117,10 @@ contains
           ! Sub-surface runoff and drainage
 
           qflx_drain(c) = qflx_rsub_sat(c) + rsub_top(c)
+#if (defined MARSH)
+          ! Clamp drainage to prevent numerical blowup at coastal cells
+          qflx_drain(c) = max(min(qflx_drain(c), 0.01_r8), -0.01_r8)
+#endif
 
           ! Set imbalance for snow capping
 
@@ -2527,6 +2531,10 @@ contains
           ! Sub-surface runoff and drainage
 
           qflx_drain(c) = qflx_rsub_sat(c) + rsub_top(c)
+#if (defined MARSH)
+          ! Clamp drainage to prevent numerical blowup at coastal cells
+          qflx_drain(c) = max(min(qflx_drain(c), 0.01_r8), -0.01_r8)
+#endif
 
           ! Set imbalance for snow capping
 

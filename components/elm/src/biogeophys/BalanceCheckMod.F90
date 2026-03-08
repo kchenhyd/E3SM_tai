@@ -38,6 +38,11 @@ module BalanceCheckMod
   public :: ColWaterBalanceCheck  ! Water and energy balance check
   public :: BeginGridWaterBalance
   public :: GridBalanceCheck
+#if (defined MARSH)
+  ! Counter to throttle MARSH water balance warnings
+  integer, private :: marsh_wb_warn_count = 0
+  integer, private, parameter :: marsh_wb_warn_max = 100
+#endif
   !-----------------------------------------------------------------------
 
 contains
@@ -442,6 +447,21 @@ contains
 
           else if (abs(errh2o(indexc)) > 1.e-4_r8 .and. (nstep > 2) ) then
 
+#if (defined MARSH)
+             ! MARSH lateral flow has inherent numerical imbalance; warn but do not abort
+             ! Throttle output: only print detailed diagnostics for the first N warnings
+             marsh_wb_warn_count = marsh_wb_warn_count + 1
+             if (marsh_wb_warn_count <= marsh_wb_warn_max) then
+                write(iulog,*)'WARNING: MARSH water balance error exceeds 1e-4 mm, continuing'
+                write(iulog,*)'  gridcell=',col_pp%gridcell(indexc), &
+                     ' nstep=',nstep,' errh2o=',errh2o(indexc), &
+                     ' qflx_drain=',qflx_drain(indexc)
+             end if
+             if (marsh_wb_warn_count == marsh_wb_warn_max) then
+                write(iulog,*)'WARNING: Suppressing further MARSH water balance warnings (limit=', &
+                     marsh_wb_warn_max,')'
+             end if
+#else
              write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)'
              write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
              write(iulog,*)'nstep                      = ',nstep
@@ -465,20 +485,13 @@ contains
              write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
              write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
              write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
-#if (defined HUM_HOL || defined MARSH)
+#if (defined HUM_HOL)
              write(iulog,*)'qflx_lat_aqu               = ',qflx_lat_aqu(indexc)
              write(iulog,*)'qflx_surf_input            = ',qflx_surf_input(indexc)
-#endif
-#if (defined MARSH)
-             write(iulog,*)'qflx_tide                  = ',qflx_tide(indexc)
 #endif
              write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
              write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
              write(iulog,*)'qflx_ice_runoff_xs          = ',qflx_ice_runoff_xs(indexc)
-#if (defined MARSH)
-             ! MARSH lateral flow has inherent numerical imbalance; warn but do not abort
-             write(iulog,*)'WARNING: MARSH water balance error exceeds 1e-4 mm, continuing'
-#else
              write(iulog,*)'elm model is stopping'
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
 #endif
