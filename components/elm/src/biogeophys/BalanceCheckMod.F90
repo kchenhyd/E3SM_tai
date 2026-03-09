@@ -413,11 +413,26 @@ contains
 
        if ( found ) then
 #ifndef _OPENACC
+#if (defined MARSH)
+          ! Throttle all MARSH water balance warnings to avoid GB-sized logs
+          marsh_wb_warn_count = marsh_wb_warn_count + 1
+          if (marsh_wb_warn_count <= marsh_wb_warn_max) then
+             write(iulog,*)'WARNING:  water balance error ',&
+                  ' nstep= ',nstep, &
+                  ' local indexc= ',indexc,&
+                  ' errh2o= ',errh2o(indexc)
+          end if
+          if (marsh_wb_warn_count == marsh_wb_warn_max) then
+             write(iulog,*)'WARNING: Suppressing further MARSH water balance warnings (limit=', &
+                  marsh_wb_warn_max,')'
+          end if
+#else
           write(iulog,*)'WARNING:  water balance error ',&
                ' nstep= ',nstep, &
                ' local indexc= ',indexc,&
                !' global indexc= ',GetGlobalIndex(decomp_index=indexc, elmlevel=namec), &
-               ' errh2o= ',errh2o(indexc)             
+               ' errh2o= ',errh2o(indexc)
+#endif
 
           if ((col_pp%itype(indexc) == icol_roof .or. &
                col_pp%itype(indexc) == icol_road_imperv .or. &
@@ -448,19 +463,8 @@ contains
           else if (abs(errh2o(indexc)) > 1.e-4_r8 .and. (nstep > 2) ) then
 
 #if (defined MARSH)
-             ! MARSH lateral flow has inherent numerical imbalance; warn but do not abort
-             ! Throttle output: only print detailed diagnostics for the first N warnings
-             marsh_wb_warn_count = marsh_wb_warn_count + 1
-             if (marsh_wb_warn_count <= marsh_wb_warn_max) then
-                write(iulog,*)'WARNING: MARSH water balance error exceeds 1e-4 mm, continuing'
-                write(iulog,*)'  gridcell=',col_pp%gridcell(indexc), &
-                     ' nstep=',nstep,' errh2o=',errh2o(indexc), &
-                     ' qflx_drain=',qflx_drain(indexc)
-             end if
-             if (marsh_wb_warn_count == marsh_wb_warn_max) then
-                write(iulog,*)'WARNING: Suppressing further MARSH water balance warnings (limit=', &
-                     marsh_wb_warn_max,')'
-             end if
+             ! MARSH: already warned above via throttle; silently continue
+             continue
 #else
              write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)'
              write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
