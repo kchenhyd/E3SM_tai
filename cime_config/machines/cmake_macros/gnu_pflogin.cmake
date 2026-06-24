@@ -1,0 +1,22 @@
+set(MPICC "mpicc")
+set(MPICXX "mpic++")
+set(MPIFC "mpif90")
+set(SCC "gcc")
+set(SCXX "g++")
+set(SFC "gfortran")
+set(HDF5_PATH "$ENV{HDF5_PATH}")
+set(NETCDF_C_PATH "$ENV{NETCDF_C_PATH}")
+set(NETCDF_FORTRAN_PATH "$ENV{NETCDF_FORTRAN_PATH}")
+set(BLASLAPACK_LIBDIR "$ENV{BLASLAPACK_LIBDIR}")
+set(SUPPORTS_CXX "TRUE")
+string(APPEND CMAKE_C_FLAGS_RELEASE " -O2")
+string(APPEND CMAKE_Fortran_FLAGS_RELEASE " -O2")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " -O0")
+string(APPEND FFLAGS " -fallow-argument-mismatch -fno-range-check")
+string(APPEND SLIBS " -L$ENV{PNETCDF_PATH}/lib -lpnetcdf -L$ENV{HDF5_PATH}/lib -lhdf5_hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -L$ENV{NETCDF_C_PATH}/lib -lnetcdf -L$ENV{NETCDF_FORTRAN_PATH}/lib -lnetcdff")
+string(APPEND SLIBS " -L${BLASLAPACK_LIBDIR} -lblas -llapack")
+string(APPEND CXX_LIBS " -lstdc++")
+set(PIO_FILESYSTEM_HINTS "lustre")
+# NOTE: alquimia/PFLOTRAN/PETSc linking is handled by the base gnu.cmake block,
+# driven by the env vars ALQUIMIA_PATH, PFLOTRAN_SRC, PETSC_DIR set in
+# config_machines.xml for MACH=pflogin (prebuilt v2021 libs).

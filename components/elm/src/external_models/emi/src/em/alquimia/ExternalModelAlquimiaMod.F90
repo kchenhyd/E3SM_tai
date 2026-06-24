@@ -1398,7 +1398,7 @@ end subroutine EMAlquimia_Coldstart
                   qflx_adv_l2e(c,j) = 0.0_r8
                 endif
                   qflx_drain_l2e(c,j) = qflx_drain_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt
-                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt   ! [zk6] *dt for unit consistency (mm/s rate -> mm over step), per f9y working copy
               enddo
 
               ! reset Alquimia aux_double(:) with ELM state variables
@@ -1477,8 +1477,7 @@ end subroutine EMAlquimia_Coldstart
                   (h2o_liqvol(c,:)+h2o_icevol(c,:))/porosity_l2e(c,:),    &    ! Water content as fraction of saturation
                   liq_frac(:),  &  ! Liquid fraction of soil water
                   -qflx_adv_l2e(c,0:nlevdecomp),&  ! Vertical water flux (mm/s)
-                  qflx_drain_l2e(c,:)/dt,         &      ! Horizontal water flux (depth-resolved) mm/s
-                  qflx_lat_aqu_l2e(c,:),         &      ! Horizontal water flux (depth-resolved) mm/s
+                  qflx_lat_aqu_l2e(c,:)/dt,         &      ! Horizontal water flux (depth-resolved) mm/s [zk6: match run_column_onestep single lat_flow arg, per f9y working copy]
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
                   lat_flux,                 &      ! Output: Lateral flux of each solute
                   surf_bc,                  &      ! Surface boundary condition

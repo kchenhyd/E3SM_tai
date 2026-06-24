@@ -4277,6 +4277,76 @@
     </environment_variables>
   </machine>
 
+  <machine MACH="pflogin">
+    <DESC>ORNL CADES baseline cluster (pflogin login, blc compute nodes), Rocky 9.7, 128 pes/node, slurm. Ported for ELM+alquimia+PFLOTRAN (v2021).</DESC>
+    <NODENAME_REGEX>^(pflogin|blc)</NODENAME_REGEX>
+    <OS>LINUX</OS>
+    <COMPILERS>gnu</COMPILERS>
+    <MPILIBS>openmpi</MPILIBS>
+    <CIME_OUTPUT_ROOT>/scratch/$USER/e3sm_scratch</CIME_OUTPUT_ROOT>
+    <DIN_LOC_ROOT>/projects/hpcl-cli185/world-shared/e3sm/inputdata</DIN_LOC_ROOT>
+    <DIN_LOC_ROOT_CLMFORC>/projects/hpcl-cli185/world-shared/e3sm/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+    <DOUT_S_ROOT>/scratch/$USER/e3sm_archive/$CASE</DOUT_S_ROOT>
+    <BASELINE_ROOT>/projects/hpcl-cli185/world-shared/e3sm/baselines/$COMPILER</BASELINE_ROOT>
+    <CCSM_CPRNC>/projects/hpcl-cli185/world-shared/e3sm/tools/cprnc/cprnc</CCSM_CPRNC>
+    <GMAKE_J>32</GMAKE_J>
+    <BATCH_SYSTEM>slurm</BATCH_SYSTEM>
+    <SUPPORTED_BY>zk6 -at- ornl.gov</SUPPORTED_BY>
+    <MAX_TASKS_PER_NODE>128</MAX_TASKS_PER_NODE>
+    <MAX_MPITASKS_PER_NODE>128</MAX_MPITASKS_PER_NODE>
+    <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+    <mpirun mpilib="default">
+      <executable>srun</executable>
+      <arguments>
+        <arg name="num_tasks"> -n {{ total_tasks }}</arg>
+      </arguments>
+    </mpirun>
+    <module_system type="module" allow_error="true">
+      <init_path lang="sh">/software/baseline/nsp/lmod/lmod/init/sh</init_path>
+      <init_path lang="csh">/software/baseline/nsp/lmod/lmod/init/csh</init_path>
+      <init_path lang="python">/software/baseline/nsp/lmod/lmod/init/env_modules_python.py</init_path>
+      <init_path lang="perl">/software/baseline/nsp/lmod/lmod/init/perl</init_path>
+      <cmd_path lang="perl">module</cmd_path>
+      <cmd_path lang="python">/software/baseline/nsp/lmod/lmod/libexec/lmod python</cmd_path>
+      <cmd_path lang="sh">module</cmd_path>
+      <cmd_path lang="csh">module</cmd_path>
+      <modules>
+        <command name="purge"/>
+        <command name="load">DefApps</command>
+        <command name="load">Core/25.05</command>
+      </modules>
+      <modules compiler="gnu" mpilib="openmpi">
+        <command name="load">gcc/12.4.0</command>
+        <command name="load">openmpi/5.0.5</command>
+        <command name="load">netlib-lapack/3.11.0</command>
+        <command name="load">hdf5/1.14.5-mpi</command>
+        <command name="load">netcdf-c/4.9.2-mpi-h5f</command>
+        <command name="load">netcdf-fortran/4.6.1-mpi-h5f</command>
+        <command name="load">netcdf-cxx4/4.3.1-mpi</command>
+        <command name="load">parallel-netcdf/1.12.3-mpi</command>
+        <command name="load">cmake/3.30.5</command>
+        <command name="load">miniforge3/24.11.3-0</command>
+      </modules>
+    </module_system>
+    <RUNDIR>$CIME_OUTPUT_ROOT/$CASE/run</RUNDIR>
+    <EXEROOT>$CIME_OUTPUT_ROOT/$CASE/bld</EXEROOT>
+    <environment_variables>
+      <env name="OMP_STACKSIZE">256M</env>
+      <!-- conda perl (real, non-container) with XML::LibXML for ELM build-namelist/configure -->
+      <env name="PATH">/projects/hpcl-cli185/users/zk6/conda/envs/e3sm-perl/bin:$ENV{PATH}</env>
+      <env name="HDF5_PATH">$ENV{OLCF_HDF5_ROOT}</env>
+      <env name="NETCDF_PATH">$ENV{OLCF_NETCDF_C_ROOT}</env>
+      <env name="NETCDF_C_PATH">$ENV{OLCF_NETCDF_C_ROOT}</env>
+      <env name="NETCDF_FORTRAN_PATH">$ENV{OLCF_NETCDF_FORTRAN_ROOT}</env>
+      <env name="PNETCDF_PATH">$ENV{OLCF_PARALLEL_NETCDF_ROOT}</env>
+      <env name="BLASLAPACK_LIBDIR">$ENV{OLCF_NETLIB_LAPACK_ROOT}/lib64</env>
+      <env name="PETSC_DIR">/projects/hpcl-cli185/proj-shared/ccsi-apps/petsc-3.x-noopt</env>
+      <env name="PETSC_PATH">/projects/hpcl-cli185/proj-shared/ccsi-apps/petsc-3.x-noopt</env>
+      <env name="ALQUIMIA_PATH">/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/alquimia</env>
+      <env name="PFLOTRAN_SRC">/projects/hpcl-cli185/users/zk6/software/alquimia-pflotran-v2021</env>
+    </environment_variables>
+  </machine>
+
   <machine MACH="cades-baseline">
     <DESC>OCSS, ornl-css, CADES-baseline, os is Linux, 128 pes/node, batch system is slurm</DESC>
     <NODENAME_REGEX>.*baseline.*</NODENAME_REGEX>

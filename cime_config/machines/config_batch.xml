@@ -737,6 +737,16 @@
    </batch_system>
 
 
+   <batch_system MACH="pflogin" type="slurm" >
+         <submit_args>
+           <arg flag="--qos hpcl-cli185"/>
+           <arg flag="--ntasks-per-node 128"/>
+         </submit_args>
+         <queues>
+            <queue walltimemax="48:00:00" nodemin="1" nodemax="20" default="true">hpcl-cli185</queue>
+         </queues>
+   </batch_system>
+
    <batch_system MACH="cades-baseline" type="slurm" >
          <submit_args>
            <arg flag="-A CLI185"/>
